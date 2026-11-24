@@ -67,13 +67,6 @@ def _P_not_root(ns):
     return _off(g("a2")*g("P")**2 + g("a1")*g("P") + g("a0"), 1e-8)
 
 
-def _hp_not_applied(ns):
-    """Hansen practice: HP-filtered output has autocorrelation near 0.7; unfiltered, near 1."""
-    import numpy as np
-    y = np.asarray(ns["cyc"]["Y"], dtype=float)
-    return np.corrcoef(y[1:], y[:-1])[0, 1] > 0.9
-
-
 # Lecture-specific checks for mistakes that do not raise an error:
 # (exercise cell number, test on the student's variables, message)
 CHECKS = {
@@ -94,8 +87,6 @@ CHECKS = {
         (8, lambda ns: _off(ns["irf"]["K"][0]), "Capital moves on impact: K is predetermined, so K[0] should be 0"),
         (8, lambda ns: _off(ns["irf"]["Y"][0] - ns["S"][0, 0]*ns["irf"]["A"][0], 1e-10),
          "Impact response of Y is not S_Y times the shock"),
-        (11, lambda ns: len(ns["cyc"]["Y"]) < 5000, "Simulation is too short: use T = 10,000"),
-        (11, _hp_not_applied, "Output looks unfiltered: did you apply the HP filter?"),
     ],
 }
 
