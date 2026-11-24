@@ -35,12 +35,67 @@ def _not_finite(x):
         return False
 
 
+def _off(x, tol=1e-6):
+    """True if x is not a finite number close to zero."""
+    try:
+        return not abs(float(x)) < tol
+    except Exception:
+        return True
+
+
+def _ss_wrong(ns):
+    """Hansen practice: the student's steady state violates one of the model's equations."""
+    g = ns.get
+    th, de, be, H = g("theta"), g("delta"), g("beta"), g("H_bar")
+    K, Y, C, psi = g("K_bar"), g("Y_bar"), g("C_bar"), g("psi")
+    return any(_off(r) for r in (
+        1 - be*(th*Y/K + 1 - de),                       # Euler
+        Y - C - de*K,                                   # resource constraint
+        Y - K**th * H**(1 - th),                        # production
+        psi/(1 - H) - (1 - th)*Y/(C*H),                 # labor-leisure
+    ))
+
+
+def _shapes_wrong(ns):
+    want = {"A": (3, 1), "B": (3, 1), "C": (3, 3), "D": (3, 1), "J": (1, 3), "Km": (1, 3),
+            "F": (1, 1), "G": (1, 1), "Hm": (1, 1), "L": (1, 1), "M": (1, 1), "N": (1, 1)}
+    return any(getattr(ns.get(k), "shape", None) != s for k, s in want.items())
+
+
+def _P_not_root(ns):
+    g = ns.get
+    return _off(g("a2")*g("P")**2 + g("a1")*g("P") + g("a0"), 1e-8)
+
+
+def _hp_not_applied(ns):
+    """Hansen practice: HP-filtered output has autocorrelation near 0.7; unfiltered, near 1."""
+    import numpy as np
+    y = np.asarray(ns["cyc"]["Y"], dtype=float)
+    return np.corrcoef(y[1:], y[:-1])[0, 1] > 0.9
+
+
 # Lecture-specific checks for mistakes that do not raise an error:
 # (exercise cell number, test on the student's variables, message)
 CHECKS = {
     "lecture01": [
         (5, lambda ns: ns.get("it") == 999, "Hit the iteration cap: value function did not converge"),
         (5, lambda ns: _not_finite(ns.get("v")), "NaN or Inf in the value function"),
+    ],
+    # Hansen-practice checks test the model's own equations, so this file reveals no answers
+    "hansen_practice": [
+        (3, _ss_wrong, "Steady state does not satisfy the model's equations"),
+        (4, _shapes_wrong, "A matrix has the wrong shape (see the sizes listed above the cell)"),
+        (5, lambda ns: not abs(ns["P"]) < 1, "Picked the explosive root: need |P| < 1"),
+        (5, _P_not_root, "P does not solve the quadratic a2 P^2 + a1 P + a0 = 0"),
+        (5, lambda ns: _off(ns["a0"]/ns["a2"] - 1/ns["beta"]),   # product of the roots
+         "Product of the roots is not 1/beta: check the quadratic's coefficients"),
+        (6, lambda ns: _not_finite(ns.get("Q")) or _not_finite(ns.get("R")) or _not_finite(ns.get("S")),
+         "NaN or Inf in Q, R or S"),
+        (8, lambda ns: _off(ns["irf"]["K"][0]), "Capital moves on impact: K is predetermined, so K[0] should be 0"),
+        (8, lambda ns: _off(ns["irf"]["Y"][0] - ns["S"][0, 0]*ns["irf"]["A"][0], 1e-10),
+         "Impact response of Y is not S_Y times the shock"),
+        (11, lambda ns: len(ns["cyc"]["Y"]) < 5000, "Simulation is too short: use T = 10,000"),
+        (11, _hp_not_applied, "Output looks unfiltered: did you apply the HP filter?"),
     ],
 }
 
